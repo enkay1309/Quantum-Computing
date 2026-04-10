@@ -1,52 +1,59 @@
-import time
-from bb84_simulation import simulate_bb84
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+from pathlib import Path
+
+from qiskit_aer import AerSimulator
+
+from src.circuits import build_single_bb84_circuit
+from src.simulation import simulate_bb84
+from utils.logging_config import configure_logging
+from utils.plots import save_key_length_plot, save_measurement_histogram, save_qber_plot
 
 
-def main():
-    print("=" * 60)
-    print("  BB84 Quantum Key Distribution")
-    print("  Part 1.4: Visualization and Results")
-    print("=" * 60)
-
-    start = time.time()
-
-    print("\n[*] Running quick sanity check...")
-    r1 = simulate_bb84(1000, eve_present=False)
-    print(f"  No Eve:   sifted key = {r1['sifted_length']} bits, QBER = {r1['qber']:.4f}")
-    r2 = simulate_bb84(1000, eve_present=True, eve_attack_prob=1.0)
-    print(f"  Eve 100%: sifted key = {r2['sifted_length']} bits, QBER = {r2['qber']:.4f}")
-    print("  Sanity check passed." if r1['qber'] < 0.05 and r2['qber'] > 0.15 else "  WARNING: Unexpected results")
-
-    from visualize_circuit import run_all as run_circuits
-    run_circuits()
-
-    from plot_qber import plot_qber_vs_attack_probability
-    plot_qber_vs_attack_probability(n_qubits=1000, n_trials=20)
-
-    from plot_key_length import plot_key_length
-    plot_key_length(n_trials=15)
-
-    from plot_surface import plot_qber_surface
-    plot_qber_surface(n_trials=5)
-
-    elapsed = time.time() - start
-
-    print("=" * 60)
-    print(f"  All done! Total time: {elapsed:.1f} seconds")
-    print("=" * 60)
-    print("\nGenerated files:")
-    print("  Circuit Diagrams:")
-    print("    - circuit_alice_encoding.png")
-    print("    - circuit_bob_measurement.png")
-    print("    - circuit_eve_attack.png")
-    print("    - circuit_full_protocol.png")
-    print("  Graphs:")
-    print("    - qber_vs_attack_prob.png")
-    print("    - key_length_vs_qubits.png")
-    print("    - qber_surface_3d.png")
-    print("    - qber_heatmap.png")
-    print()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run BB84 quantum key distribution simulations.")
+    parser.add_argument("--n-qubits", type=int, default=1000, help="Number of transmitted qubits.")
+    parser.add_argument("--attack", type=float, default=0.0, help="Eve interception probability [0,1].")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for deterministic runs.")
+    parser.add_argument("--output-dir", type=Path, default=Path("outputs"), help="Directory for plots and artifacts.")
+    parser.add_argument("--log-level", type=str, default="INFO", help="Logging level.")
+    return parser.parse_args()
 
 
-if __name__ == '__main__':
-    main()
+def run_cli() -> None:
+    args = parse_args()
+    configure_logging(args.log_level)
+    logger = logging.getLogger("bb84")
+
+    logger.info("Running BB84 simulation: n_qubits=%s, attack=%s", args.n_qubits, args.attack)
+    result = simulate_bb84(
+        n_qubits=args.n_qubits,
+        eve_present=args.attack > 0,
+        attack_probability=args.attack,
+        seed=args.seed,
+    )
+    logger.info("Sifted length=%s | QBER=%.4f", result.sifted_length, result.qber)
+
+    preview_circuit = build_single_bb84_circuit(1, 1, 0, eve_present=args.attack > 0, eve_basis=1)
+    backend = AerSimulator()
+    counts = backend.run(preview_circuit, shots=512).result().get_counts()
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    qber_plot = save_qber_plot(args.output_dir)
+    key_plot = save_key_length_plot(args.output_dir)
+    hist_plot = save_measurement_histogram(counts, args.output_dir)
+
+    summary_path = args.output_dir / "simulation_summary.json"
+    summary_path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
+
+    logger.info("Saved: %s", qber_plot)
+    logger.info("Saved: %s", key_plot)
+    logger.info("Saved: %s", hist_plot)
+    logger.info("Saved: %s", summary_path)
+
+
+if __name__ == "__main__":
+    run_cli()
