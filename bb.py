@@ -64,7 +64,7 @@ for i in range(n):
 
 backend = Aer.get_backend("aer_simulator")
 
-job = backend.run(qc, shots=1)
+job = backend.run(qc, shots=5000)
 
 result = job.result()
 
