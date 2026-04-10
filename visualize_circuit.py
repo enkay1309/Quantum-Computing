@@ -4,7 +4,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from qiskit import QuantumCircuit
 
-from bb import encode_qubits
+import alice_bob_mod
+from alice_bob_mod import encode_qubits
 from bb84_simulation import build_bb84_circuit_example
 
 
@@ -136,13 +137,13 @@ def create_full_protocol_circuit():
     alice_bases = [0, 1, 1, 0]
     bob_bases   = [0, 0, 1, 1]
 
-    import bb
-    old_n = bb.n
-    bb.n = n
+    # Temporarily set alice_bob_mod.n for encode_qubits
+    old_n = alice_bob_mod.n
+    alice_bob_mod.n = n
 
     qc = encode_qubits(alice_bits, alice_bases)
 
-    bb.n = old_n
+    alice_bob_mod.n = old_n
 
     qc.barrier(label='Quantum Channel (Eve may intercept)')
 
