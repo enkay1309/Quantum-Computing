@@ -1,70 +1,9 @@
-import random
-from qiskit import QuantumCircuit, transpile
-from qiskit_aer import Aer
-
-n = 8
-shots = 5000   # as required (1000–10000)
-
-def alice_bit_generator(n):
-    return [random.randint(0,1) for _ in range(n)]
-
-def alice_bases_generator(n):
-    return [random.randint(0,1) for _ in range(n)]
-
-def encode_qubits(bits, bases):
-    qc = QuantumCircuit(n, n)
-    for i in range(n):
-        if bases[i] == 0:
-            if bits[i] == 1:
-                qc.x(i)
-        else:
-            if bits[i] == 0:
-                qc.h(i)
-            else:
-                qc.x(i)
-                qc.h(i)
-    return qc
-
-
-def eve_bases_generator(n):
-    return [random.randint(0,1) for _ in range(n)]
-
-def eve_attack(qc, eve_bases, attack_prob):
-    backend = Aer.get_backend('aer_simulator')
-
-    for i in range(n):
-        if random.random() < attack_prob:
-
-            # Measure in Eve basis
-            if eve_bases[i] == 1:
-                qc.h(i)
-
-            qc.measure(i, i)
-
-            compiled = transpile(qc, backend)
-            job = backend.run(compiled, shots=1)
-            res = list(job.result().get_counts().keys())[0]
-            bit = int(res[n-1-i])
-
-            # Reset + resend
-            qc.reset(i)
-
-            if eve_bases[i] == 0:
-                if bit == 1:
-                    qc.x(i)
-            else:
-                if bit == 0:
-                    qc.h(i)
-                else:
-                    qc.x(i)
-                    qc.h(i)
-
-    return qc
-
-
-# -------------------------------
-# MAIN PROGRAM
-# -------------------------------
+#Statistical testing
+#----------------
+from bb import alice_bit_generator
+from bb import alice_bases_generator
+from evemod import eve_bases_generator
+from evemod import eve-attack
 
 alice_bits = alice_bit_generator(n)
 alice_bases = alice_bases_generator(n)
